@@ -14,6 +14,8 @@ import {
   Typography,
   Button,
   Divider,
+  Fab,
+  Tooltip,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -21,6 +23,8 @@ import {
   Train as TrainIcon,
   DoNotDisturb as ClosureIcon,
   Logout as LogoutIcon,
+  Add as AddIcon,
+  ListAlt as ListAltIcon,
 } from '@mui/icons-material';
 import { AuthContext } from '../contexts/AuthContext';
 
@@ -44,6 +48,12 @@ const Layout = () => {
     { text: 'Дашборд', icon: <DashboardIcon />, path: '/' },
     { text: 'Переезды', icon: <TrainIcon />, path: '/crossings' },
     { text: 'Заявки на закрытие', icon: <ClosureIcon />, path: '/closures' },
+    { text: 'Создать заявку', icon: <AddIcon />, path: '/closures/new' },
+  ];
+
+  // Дополнительные пункты меню для оператора РЖД
+  const operatorMenuItems = [
+    { text: 'Создать заявку', icon: <AddIcon />, path: '/closures/new' },
   ];
 
   const drawer = (
@@ -68,6 +78,28 @@ const Layout = () => {
           </ListItem>
         ))}
       </List>
+      
+      {user?.role === 'railway_operator' && (
+        <>
+          <Divider />
+          <List>
+            {operatorMenuItems.map((item) => (
+              <ListItem key={item.text} disablePadding>
+                <ListItemButton
+                  component={Link}
+                  to={item.path}
+                  onClick={() => setDrawerOpen(false)}
+                  sx={{ bgcolor: 'rgba(226, 26, 26, 0.1)' }}
+                >
+                  <ListItemIcon sx={{ color: 'primary.main' }}>{item.icon}</ListItemIcon>
+                  <ListItemText primary={item.text} sx={{ color: 'primary.main', fontWeight: 'bold' }} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </>
+      )}
+      
       <Divider />
       <List>
         <ListItem disablePadding>
@@ -158,6 +190,23 @@ const Layout = () => {
       >
         <Outlet />
       </Box>
+      
+      {/* Плавающая кнопка для быстрого создания заявки (отображается всем для тестирования) */}
+      <Tooltip title="Создать новую заявку" placement="left">
+        <Fab 
+          color="primary" 
+          aria-label="add"
+          component={Link}
+          to="/closures/new"
+          sx={{ 
+            position: 'fixed', 
+            bottom: 16, 
+            right: 16 
+          }}
+        >
+          <AddIcon />
+        </Fab>
+      </Tooltip>
     </Box>
   );
 };

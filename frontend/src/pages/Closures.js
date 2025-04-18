@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -16,9 +16,16 @@ import {
   CircularProgress,
   Tabs,
   Tab,
+  Tooltip,
+  IconButton,
 } from '@mui/material';
 import {
   Add as AddIcon,
+  Edit as EditIcon,
+  Send as SendIcon,
+  Delete as DeleteIcon,
+  CheckCircle as CheckIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -28,6 +35,7 @@ import api from '../services/api';
 const Closures = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
+  const navigate = useNavigate();
   const [closures, setClosures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(0);
@@ -42,6 +50,8 @@ const Closures = () => {
       setTabValue(2);
     } else if (statusFilter === 'rejected') {
       setTabValue(3);
+    } else if (statusFilter === 'draft') {
+      setTabValue(4);
     } else {
       setTabValue(0);
     }
@@ -52,125 +62,31 @@ const Closures = () => {
   }, [tabValue]);
 
   const fetchClosures = async () => {
+    setLoading(true);
     try {
-      // В реальном приложении здесь был бы запрос к API с фильтрацией по статусу
-      // const response = await api.get('/api/closures/', { params: { status: status } });
-      // setClosures(response.data);
-      
-      // Имитация запроса для демонстрации
-      setTimeout(() => {
-        const mockData = [
-          {
-            id: 1,
-            railway_crossing: {
-              id: 1,
-              name: 'Переезд №1 "Северный"',
-              latitude: 55.755819,
-              longitude: 37.617644,
-            },
-            created_by: {
-              id: 1,
-              username: 'rzd_operator',
-              first_name: 'Иван',
-              last_name: 'Петров',
-            },
-            start_date: '2025-03-15T08:00:00Z',
-            end_date: '2025-03-15T18:00:00Z',
-            reason: 'Плановый ремонт путей',
-            status: 'pending',
-            status_display: 'На согласовании',
-            admin_approved: false,
-            gibdd_approved: false,
-          },
-          {
-            id: 2,
-            railway_crossing: {
-              id: 2,
-              name: 'Переезд №2 "Южный"',
-              latitude: 55.742933,
-              longitude: 37.615812,
-            },
-            created_by: {
-              id: 1,
-              username: 'rzd_operator',
-              first_name: 'Иван',
-              last_name: 'Петров',
-            },
-            start_date: '2025-03-20T10:00:00Z',
-            end_date: '2025-03-20T16:00:00Z',
-            reason: 'Замена шпал',
-            status: 'approved',
-            status_display: 'Согласовано',
-            admin_approved: true,
-            gibdd_approved: true,
-          },
-          {
-            id: 3,
-            railway_crossing: {
-              id: 3,
-              name: 'Переезд №3 "Восточный"',
-              latitude: 55.751426,
-              longitude: 37.643658,
-            },
-            created_by: {
-              id: 1,
-              username: 'rzd_operator',
-              first_name: 'Иван',
-              last_name: 'Петров',
-            },
-            start_date: '2025-03-25T09:00:00Z',
-            end_date: '2025-03-25T19:00:00Z',
-            reason: 'Ремонт переезда',
-            status: 'rejected',
-            status_display: 'Отклонено',
-            admin_approved: false,
-            gibdd_approved: false,
-          },
-          {
-            id: 4,
-            railway_crossing: {
-              id: 1,
-              name: 'Переезд №1 "Северный"',
-              latitude: 55.755819,
-              longitude: 37.617644,
-            },
-            created_by: {
-              id: 1,
-              username: 'rzd_operator',
-              first_name: 'Иван',
-              last_name: 'Петров',
-            },
-            start_date: '2025-04-05T08:00:00Z',
-            end_date: '2025-04-05T18:00:00Z',
-            reason: 'Установка автоматических шлагбаумов',
-            status: 'draft',
-            status_display: 'Черновик',
-            admin_approved: false,
-            gibdd_approved: false,
-          },
-        ];
+      // Получаем статус для фильтрации на основе выбранной вкладки
+      let statusParam = '';
+      switch (tabValue) {
+        case 1:
+          statusParam = 'pending';
+          break;
+        case 2:
+          statusParam = 'approved';
+          break;
+        case 3:
+          statusParam = 'rejected';
+          break;
+        case 4:
+          statusParam = 'draft';
+          break;
+        default:
+          statusParam = '';
+      }
 
-        let filteredData;
-        switch (tabValue) {
-          case 1:
-            filteredData = mockData.filter(item => item.status === 'pending');
-            break;
-          case 2:
-            filteredData = mockData.filter(item => item.status === 'approved');
-            break;
-          case 3:
-            filteredData = mockData.filter(item => item.status === 'rejected');
-            break;
-          case 4:
-            filteredData = mockData.filter(item => item.status === 'draft');
-            break;
-          default:
-            filteredData = mockData;
-        }
-
-        setClosures(filteredData);
-        setLoading(false);
-      }, 1000);
+      const params = statusParam ? { status: statusParam } : {};
+      const response = await api.get('/closures/', { params });
+      setClosures(response.data);
+      setLoading(false);
     } catch (error) {
       console.error('Ошибка при получении списка заявок:', error);
       setLoading(false);
@@ -179,6 +95,24 @@ const Closures = () => {
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
+    
+    // Обновляем URL для сохранения состояния вкладки
+    const newStatus = ['', 'pending', 'approved', 'rejected', 'draft'][newValue];
+    if (newStatus) {
+      navigate(`?status=${newStatus}`);
+    } else {
+      navigate('');
+    }
+  };
+
+  const handleSendForApproval = async (id) => {
+    try {
+      await api.post(`/closures/${id}/send_for_approval/`);
+      // Обновляем список после успешной отправки
+      fetchClosures();
+    } catch (error) {
+      console.error('Ошибка при отправке заявки на согласование:', error);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -208,6 +142,22 @@ const Closures = () => {
       </Box>
     );
   }
+
+  // Функция для определения, может ли пользователь редактировать заявку
+  const canEdit = (closure) => {
+    // Только оператор РЖД может редактировать свои черновики
+    return user?.role === 'railway_operator' && 
+           closure.status === 'draft' && 
+           closure.created_by.id === user.id;
+  };
+
+  // Функция для определения, может ли пользователь отправить заявку на согласование
+  const canSendForApproval = (closure) => {
+    // Только оператор РЖД может отправить свои черновики на согласование
+    return user?.role === 'railway_operator' && 
+           closure.status === 'draft' && 
+           closure.created_by.id === user.id;
+  };
 
   return (
     <Container>
@@ -248,55 +198,110 @@ const Closures = () => {
           <Typography variant="h6" color="textSecondary">
             Заявок не найдено
           </Typography>
+          {user?.role === 'railway_operator' && tabValue === 4 && (
+            <Button
+              component={Link}
+              to="/closures/new"
+              variant="contained"
+              sx={{ mt: 2 }}
+              startIcon={<AddIcon />}
+            >
+              Создать новую заявку
+            </Button>
+          )}
         </Paper>
       ) : (
-        <Paper elevation={3}>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>ID</TableCell>
-                  <TableCell>Переезд</TableCell>
-                  <TableCell>Дата начала</TableCell>
-                  <TableCell>Дата окончания</TableCell>
-                  <TableCell>Статус</TableCell>
-                  <TableCell>Создатель</TableCell>
-                  <TableCell>Действия</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {closures.map((closure) => (
-                  <TableRow key={closure.id}>
-                    <TableCell>{closure.id}</TableCell>
-                    <TableCell>{closure.railway_crossing.name}</TableCell>
-                    <TableCell>{formatDate(closure.start_date)}</TableCell>
-                    <TableCell>{formatDate(closure.end_date)}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={closure.status_display} 
-                        color={getStatusColor(closure.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {closure.created_by.first_name} {closure.created_by.last_name}
-                    </TableCell>
-                    <TableCell>
+        <TableContainer component={Paper} elevation={3}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Переезд</TableCell>
+                <TableCell>Период закрытия</TableCell>
+                <TableCell>Статус</TableCell>
+                <TableCell>Согласование</TableCell>
+                <TableCell>Действия</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {closures.map((closure) => (
+                <TableRow key={closure.id} hover>
+                  <TableCell>
+                    <Typography variant="body1">
+                      {closure.railway_crossing_detail?.name || 'Переезд не указан'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {formatDate(closure.start_date)} - {formatDate(closure.end_date)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={closure.status_display}
+                      color={getStatusColor(closure.status)}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Tooltip title="Администрация">
+                        {closure.admin_approved ? (
+                          <CheckIcon color="success" fontSize="small" />
+                        ) : (
+                          <CancelIcon color="disabled" fontSize="small" />
+                        )}
+                      </Tooltip>
+                      <Tooltip title="ГИБДД">
+                        {closure.gibdd_approved ? (
+                          <CheckIcon color="success" fontSize="small" />
+                        ) : (
+                          <CancelIcon color="disabled" fontSize="small" />
+                        )}
+                      </Tooltip>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Box display="flex" gap={1}>
                       <Button
                         component={Link}
                         to={`/closures/${closure.id}`}
-                        variant="outlined"
                         size="small"
+                        variant="outlined"
                       >
                         Подробнее
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
+                      
+                      {canEdit(closure) && (
+                        <Tooltip title="Редактировать">
+                          <IconButton
+                            size="small"
+                            component={Link}
+                            to={`/closures/${closure.id}/edit`}
+                            color="primary"
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      
+                      {canSendForApproval(closure) && (
+                        <Tooltip title="Отправить на согласование">
+                          <IconButton
+                            size="small"
+                            color="secondary"
+                            onClick={() => handleSendForApproval(closure.id)}
+                          >
+                            <SendIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
     </Container>
   );

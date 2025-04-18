@@ -11,6 +11,12 @@ import {
   MenuItem,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Divider,
 } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DateTimePicker } from '@mui/x-date-pickers';
@@ -35,6 +41,8 @@ const ClosureForm = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [alert, setAlert] = useState(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [action, setAction] = useState('save'); // 'save' или 'submit'
 
   useEffect(() => {
     fetchCrossings();
@@ -47,36 +55,8 @@ const ClosureForm = () => {
 
   const fetchCrossings = async () => {
     try {
-      // В реальном приложении здесь был бы запрос к API
-      // const response = await api.get('/api/crossings/');
-      // setCrossings(response.data);
-      
-      // Имитация запроса для демонстрации
-      setTimeout(() => {
-        setCrossings([
-          {
-            id: 1,
-            name: 'Переезд №1 "Северный"',
-            latitude: 55.755819,
-            longitude: 37.617644,
-            description: 'Железнодорожный переезд на севере города',
-          },
-          {
-            id: 2,
-            name: 'Переезд №2 "Южный"',
-            latitude: 55.742933,
-            longitude: 37.615812,
-            description: 'Железнодорожный переезд на юге города',
-          },
-          {
-            id: 3,
-            name: 'Переезд №3 "Восточный"',
-            latitude: 55.751426,
-            longitude: 37.643658,
-            description: 'Железнодорожный переезд на востоке города',
-          },
-        ]);
-      }, 500);
+      const response = await api.get('/crossings/');
+      setCrossings(response.data);
     } catch (error) {
       console.error('Ошибка при получении списка переездов:', error);
       setAlert({
@@ -88,29 +68,16 @@ const ClosureForm = () => {
 
   const fetchClosureDetails = async () => {
     try {
-      // В реальном приложении здесь был бы запрос к API
-      // const response = await api.get(`/api/closures/${id}/`);
-      // const closure = response.data;
-      
-      // Имитация запроса для демонстрации
-      setTimeout(() => {
-        const mockClosure = {
-          id: parseInt(id),
-          railway_crossing: 1,
-          start_date: new Date('2025-03-15T08:00:00Z'),
-          end_date: new Date('2025-03-15T18:00:00Z'),
-          reason: 'Плановый ремонт путей. Необходимо заменить рельсы и шпалы на участке длиной 200 метров.',
-          status: 'draft',
-        };
+      const response = await api.get(`/closures/${id}/`);
+      const closure = response.data;
 
-        setFormData({
-          railway_crossing: mockClosure.railway_crossing,
-          start_date: mockClosure.start_date,
-          end_date: mockClosure.end_date,
-          reason: mockClosure.reason,
-        });
-        setLoading(false);
-      }, 1000);
+      setFormData({
+        railway_crossing: closure.railway_crossing,
+        start_date: new Date(closure.start_date),
+        end_date: new Date(closure.end_date),
+        reason: closure.reason,
+      });
+      setLoading(false);
     } catch (error) {
       console.error('Ошибка при получении данных заявки:', error);
       setAlert({
@@ -148,33 +115,57 @@ const ClosureForm = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
+  const handleSave = () => {
+    setAction('save');
+    if (validateForm()) {
+      setConfirmDialogOpen(true);
     }
-    
+  };
+
+  const handleSubmit = () => {
+    setAction('submit');
+    if (validateForm()) {
+      setConfirmDialogOpen(true);
+    }
+  };
+
+  const handleConfirmAction = async () => {
+    setConfirmDialogOpen(false);
     setSubmitting(true);
-    
+
     try {
-      // В реальном приложении здесь был бы запрос к API
+      let response;
+      const dataToSend = {
+        railway_crossing: formData.railway_crossing,
+        start_date: formData.start_date.toISOString(),
+        end_date: formData.end_date.toISOString(),
+        reason: formData.reason,
+      };
+
       if (isEditMode) {
-        // await api.put(`/api/closures/${id}/`, formData);
+        response = await api.put(`/closures/${id}/`, dataToSend);
       } else {
-        // await api.post('/api/closures/', formData);
+        response = await api.post('/closures/', dataToSend);
+      }
+
+      if (action === 'submit' && response.data && response.data.id) {
+        const closureId = isEditMode ? id : response.data.id;
+        await api.post(`/closures/${closureId}/send_for_approval/`);
+      }
+
+      setSubmitting(false);
+      
+      if (isEditMode) {
+        navigate(`/closures/${id}`);
+      } else {
+        navigate('/closures');
       }
       
-      // Имитация запроса для демонстрации
-      setTimeout(() => {
-        setSubmitting(false);
-        navigate(isEditMode ? `/closures/${id}` : '/closures');
-      }, 1000);
     } catch (error) {
       console.error('Ошибка при сохранении заявки:', error);
       setAlert({
         type: 'error',
-        message: 'Не удалось сохранить заявку',
+        message: 'Не удалось сохранить заявку. Проверьте данные и попробуйте снова.',
       });
       setSubmitting(false);
     }
@@ -187,7 +178,6 @@ const ClosureForm = () => {
       [name]: value,
     });
     
-    // Очищаем ошибку поля при изменении
     if (errors[name]) {
       setErrors({
         ...errors,
@@ -202,7 +192,6 @@ const ClosureForm = () => {
       [name]: value,
     });
     
-    // Очищаем ошибку поля при изменении
     if (errors[name]) {
       setErrors({
         ...errors,
@@ -239,7 +228,7 @@ const ClosureForm = () => {
       )}
 
       <Paper elevation={3} sx={{ p: 3 }}>
-        <form onSubmit={handleSubmit}>
+        <form>
           <Grid container spacing={3}>
             <Grid item xs={12}>
               <TextField
@@ -251,10 +240,8 @@ const ClosureForm = () => {
                 onChange={handleChange}
                 error={!!errors.railway_crossing}
                 helperText={errors.railway_crossing}
-                disabled={submitting || isEditMode}
-                required
+                disabled={submitting}
               >
-                <MenuItem value="">Выберите переезд</MenuItem>
                 {crossings.map((crossing) => (
                   <MenuItem key={crossing.id} value={crossing.id}>
                     {crossing.name}
@@ -269,15 +256,15 @@ const ClosureForm = () => {
                   label="Дата и время начала"
                   value={formData.start_date}
                   onChange={(value) => handleDateChange('start_date', value)}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      required: true,
-                      error: !!errors.start_date,
-                      helperText: errors.start_date,
-                      disabled: submitting,
-                    },
-                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      fullWidth
+                      error={!!errors.start_date}
+                      helperText={errors.start_date}
+                      disabled={submitting}
+                    />
+                  )}
                 />
               </LocalizationProvider>
             </Grid>
@@ -288,15 +275,15 @@ const ClosureForm = () => {
                   label="Дата и время окончания"
                   value={formData.end_date}
                   onChange={(value) => handleDateChange('end_date', value)}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      required: true,
-                      error: !!errors.end_date,
-                      helperText: errors.end_date,
-                      disabled: submitting,
-                    },
-                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      fullWidth
+                      error={!!errors.end_date}
+                      helperText={errors.end_date}
+                      disabled={submitting}
+                    />
+                  )}
                 />
               </LocalizationProvider>
             </Grid>
@@ -311,34 +298,73 @@ const ClosureForm = () => {
                 value={formData.reason}
                 onChange={handleChange}
                 error={!!errors.reason}
-                helperText={errors.reason || 'Подробно опишите причину и характер работ'}
+                helperText={errors.reason}
                 disabled={submitting}
-                required
               />
             </Grid>
 
             <Grid item xs={12}>
-              <Box display="flex" justifyContent="flex-end" gap={2}>
-                <Button
-                  variant="outlined"
-                  component={Link}
-                  to={isEditMode ? `/closures/${id}` : '/closures'}
+              <Box mt={2} display="flex" justifyContent="space-between">
+                <Button 
+                  component={Link} 
+                  to="/closures" 
+                  variant="outlined" 
                   disabled={submitting}
                 >
                   Отмена
                 </Button>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={submitting}
-                >
-                  {submitting ? 'Сохранение...' : 'Сохранить'}
-                </Button>
+                <Box>
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    onClick={handleSave}
+                    disabled={submitting}
+                    sx={{ mr: 2 }}
+                  >
+                    Сохранить как черновик
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <CircularProgress size={24} color="inherit" />
+                    ) : (
+                      'Отправить на согласование'
+                    )}
+                  </Button>
+                </Box>
               </Box>
             </Grid>
           </Grid>
         </form>
       </Paper>
+
+      <Dialog
+        open={confirmDialogOpen}
+        onClose={() => setConfirmDialogOpen(false)}
+      >
+        <DialogTitle>
+          {action === 'submit' ? 'Отправить на согласование?' : 'Сохранить заявку?'}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {action === 'submit' 
+              ? 'Заявка будет отправлена на согласование в администрацию и ГИБДД. После отправки изменение данных будет невозможно.' 
+              : 'Заявка будет сохранена как черновик. Вы сможете редактировать её позже и отправить на согласование.'}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialogOpen(false)} color="primary">
+            Отмена
+          </Button>
+          <Button onClick={handleConfirmAction} color="primary" variant="contained">
+            {action === 'submit' ? 'Отправить' : 'Сохранить'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

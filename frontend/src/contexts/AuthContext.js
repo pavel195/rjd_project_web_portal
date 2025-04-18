@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUserData = async () => {
     try {
-      const response = await api.get('/api/auth/users/me/');
+      const response = await api.get('/auth/users/me/');
       setUser(response.data);
       setLoading(false);
     } catch (error) {
@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       setError(null);
-      const response = await api.post('/api/auth/token/login/', {
+      const response = await api.post('/auth/token/login/', {
         username,
         password,
       });

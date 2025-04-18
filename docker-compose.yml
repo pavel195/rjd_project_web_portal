@@ -17,42 +17,33 @@ services:
     build: ./backend
     restart: always
     ports:
-      - "8000:8000"
+      - "9009:9009"
     depends_on:
       - db
     env_file:
       - ./.env
+    environment:
+      - DEBUG=true
     volumes:
       - static_value:/app/static/
       - media_value:/app/media/
+      - ./backend:/app
 
   frontend:
-    build: ./frontend
-    ports:
-      - "3000:80"
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
     volumes:
-      - frontend_build:/app/build/
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
     depends_on:
       - backend
-
-  nginx:
-    build: ./nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d/
-      - ./nginx/ssl:/etc/nginx/ssl/
-      - static_value:/var/html/static/
-      - media_value:/var/html/media/
-      - frontend_build:/usr/share/nginx/html/
-    depends_on:
-      - backend
-      - frontend
-    restart: always
+    environment:
+      - REACT_APP_API_URL=http://localhost:9009/api
 
 volumes:
   postgres_data:
   static_value:
-  media_value:
-  frontend_build: 
+  media_value: 

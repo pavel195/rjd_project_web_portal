@@ -117,4 +117,20 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
 ]
 
-AUTH_USER_MODEL = 'users.User' 
+AUTH_USER_MODEL = 'users.User'
+
+# Максимальный размер загружаемых файлов (5 МБ)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
+
+# Разрешенные типы файлов для загрузки
+ALLOWED_DOCUMENT_TYPES = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/jpeg',
+    'image/png',
+    'application/zip',
+    'application/x-rar-compressed',
+] 

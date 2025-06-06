@@ -4,7 +4,9 @@ from .views import (
     RailwayCrossingViewSet, 
     ClosureViewSet, 
     ClosureCommentViewSet,
-    YandexMapExportView
+    YandexMapExportView,
+    ActivityView,
+    ClosureDocumentViewSet
 )
 
 router = DefaultRouter()
@@ -15,8 +17,14 @@ router.register(
     ClosureCommentViewSet,
     basename='closure-comments'
 )
+router.register(
+    r'closures/(?P<closure_id>\d+)/documents',
+    ClosureDocumentViewSet,
+    basename='closure-documents'
+)
 
 urlpatterns = [
     path('', include(router.urls)),
     path('export/yandex/', YandexMapExportView.as_view(), name='yandex-export'),
+    path('activities/', ActivityView.as_view(), name='activities'),
 ] 

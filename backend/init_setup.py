@@ -2,6 +2,7 @@
 import os
 import django
 from datetime import datetime, timedelta
+import random
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings")
 django.setup()
@@ -9,7 +10,7 @@ django.setup()
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.management import call_command
-from railway_crossings.models import RailwayCrossing, Closure
+from railway_crossings.models import RailwayCrossing, Closure, ClosureComment
 
 User = get_user_model()
 
@@ -220,6 +221,80 @@ def create_test_closures():
         else:
             print(f"Заявка на закрытие переезда '{closure_data['railway_crossing'].name}' уже существует.")
 
+def create_test_comments():
+    """Создание тестовых комментариев к заявкам на закрытие переездов."""
+    # Получаем всех пользователей
+    users = User.objects.all()
+    if not users:
+        print("Пользователи не найдены, комментарии не созданы.")
+        return
+
+    # Получаем все заявки
+    closures = Closure.objects.all()
+    if not closures:
+        print("Заявки не найдены, комментарии не созданы.")
+        return
+
+    # Список возможных комментариев для различных ролей
+    railway_comments = [
+        "Уточнил информацию о сроках проведения работ.",
+        "Добавил детали по техническим работам на переезде.",
+        "Прошу ускорить согласование, работы срочные.",
+        "Исправил время начала работ по просьбе технической службы.",
+        "Уточнил объем работ и необходимое оборудование."
+    ]
+    
+    admin_comments = [
+        "Согласовано с учетом организации объезда.",
+        "Обязательно установите предупреждающие знаки за 500 метров до переезда.",
+        "Требуется дополнительное согласование с муниципальными службами.",
+        "Предоставьте схему организации дорожного движения во время работ.",
+        "Не возражаю при условии информирования местных жителей за неделю."
+    ]
+    
+    police_comments = [
+        "Необходимо обеспечить дежурство сотрудника ГИБДД.",
+        "Обязательна установка временных светофоров с обеих сторон.",
+        "Утвердил схему объезда на период закрытия.",
+        "Требуется информационный щит с указанием маршрута объезда.",
+        "Не забудьте оповестить экстренные службы о закрытии переезда."
+    ]
+
+    # Создаем 15 случайных комментариев
+    comment_count = 0
+    for _ in range(15):
+        # Выбираем случайную заявку
+        closure = random.choice(closures)
+        
+        # Выбираем случайного пользователя
+        user = random.choice(users)
+        
+        # Выбираем комментарий в зависимости от роли
+        if user.role == User.RAILWAY_OPERATOR:
+            text = random.choice(railway_comments)
+        elif user.role == User.ADMINISTRATION:
+            text = random.choice(admin_comments)
+        elif user.role == User.TRAFFIC_POLICE:
+            text = random.choice(police_comments)
+        else:
+            text = "Принято к сведению."
+        
+        # Создаем комментарий с случайной датой за последние 7 дней
+        days_ago = random.randint(0, 7)
+        hours_ago = random.randint(0, 23)
+        minutes_ago = random.randint(0, 59)
+        created_at = datetime.now() - timedelta(days=days_ago, hours=hours_ago, minutes=minutes_ago)
+        
+        ClosureComment.objects.create(
+            closure=closure,
+            user=user,
+            text=text,
+            created_at=created_at
+        )
+        comment_count += 1
+    
+    print(f"Создано {comment_count} тестовых комментариев.")
+
 def run_migrations():
     """Выполнение миграций."""
     call_command('makemigrations')
@@ -235,6 +310,7 @@ def main():
     create_test_crossings()
     create_real_crossings()
     create_test_closures()
+    create_test_comments()
     print("Инициализация проекта завершена.")
 
 if __name__ == "__main__":

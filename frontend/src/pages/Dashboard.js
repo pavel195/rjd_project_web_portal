@@ -12,6 +12,12 @@ import {
   CardActionArea,
   CircularProgress,
   Alert,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Divider,
 } from '@mui/material';
 import { AuthContext } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -24,8 +30,11 @@ const Dashboard = () => {
     approvedClosures: 0,
     rejectedClosures: 0,
   });
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activitiesError, setActivitiesError] = useState(null);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -54,8 +63,34 @@ const Dashboard = () => {
       }
     };
 
+    const fetchActivities = async () => {
+      try {
+        setActivitiesLoading(true);
+        const response = await api.get('/activities/');
+        setActivities(response.data);
+        setActivitiesLoading(false);
+      } catch (error) {
+        console.error('Ошибка при получении последних активностей:', error);
+        setActivitiesError('Не удалось загрузить последние активности');
+        setActivitiesLoading(false);
+      }
+    };
+
     fetchStats();
+    fetchActivities();
   }, []);
+
+  // Форматирование даты для отображения
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('ru-RU', {
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric'
+    });
+  };
 
   const StatCard = ({ title, value, color, link }) => (
     <Card elevation={3}>
@@ -87,7 +122,7 @@ const Dashboard = () => {
           Дашборд
         </Typography>
         <Typography variant="body1" color="textSecondary">
-          Добро пожаловать, {user?.first_name} {user?.last_name}!
+          Добро пожаловать, {user?.first_name || ''} {user?.last_name || ''}!
         </Typography>
       </Box>
       
@@ -150,9 +185,49 @@ const Dashboard = () => {
         <Typography variant="h5" gutterBottom>
           Последние активности
         </Typography>
-        <Typography variant="body2" color="textSecondary">
-          Здесь будет отображаться список последних активностей пользователей
-        </Typography>
+        
+        {activitiesError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {activitiesError}
+          </Alert>
+        )}
+        
+        {activitiesLoading ? (
+          <Box display="flex" justifyContent="center" p={3}>
+            <CircularProgress size={30} />
+          </Box>
+        ) : activities.length > 0 ? (
+          <List>
+            {activities.map((activity, index) => (
+              <React.Fragment key={activity.id}>
+                <ListItem alignItems="flex-start" component={Link} to={`/closures/${activity.closure_id}`} sx={{ textDecoration: 'none', color: 'inherit' }}>
+                  <ListItemAvatar>
+                    <Avatar>{activity.user.first_name[0]}{activity.user.last_name[0]}</Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={`${activity.user.first_name} ${activity.user.last_name} добавил(а) комментарий`}
+                    secondary={
+                      <>
+                        <Typography component="span" variant="body2" color="text.primary">
+                          {activity.closure_name}
+                        </Typography>
+                        {` — ${activity.text}`}
+                        <Typography component="div" variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                          {formatDate(activity.created_at)}
+                        </Typography>
+                      </>
+                    }
+                  />
+                </ListItem>
+                {index < activities.length - 1 && <Divider variant="inset" component="li" />}
+              </React.Fragment>
+            ))}
+          </List>
+        ) : (
+          <Typography variant="body2" color="textSecondary">
+            Пока нет активностей для отображения
+          </Typography>
+        )}
       </Paper>
     </Container>
   );

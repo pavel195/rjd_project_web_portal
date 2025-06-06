@@ -82,6 +82,16 @@ class Closure(models.Model):
         default=False,
         verbose_name='Согласовано ГИБДД'
     )
+    digital_signature = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Цифровая подпись'
+    )
+    signature_date = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name='Дата подписания'
+    )
     
     class Meta:
         verbose_name = 'Заявка на закрытие'
@@ -90,8 +100,56 @@ class Closure(models.Model):
         
     def __str__(self):
         return f'{self.railway_crossing} ({self.start_date} - {self.end_date})'
+
+
+class ClosureDocument(models.Model):
+    """Модель для хранения документов, приложенных к заявке на закрытие"""
+    closure = models.ForeignKey(
+        Closure,
+        on_delete=models.CASCADE,
+        related_name='documents',
+        verbose_name='Заявка на закрытие'
+    )
+    title = models.CharField(
+        max_length=255,
+        verbose_name='Название документа'
+    )
+    file = models.FileField(
+        upload_to='closure_documents/%Y/%m/',
+        verbose_name='Файл документа'
+    )
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='uploaded_documents',
+        verbose_name='Загружено пользователем'
+    )
+    uploaded_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Дата загрузки'
+    )
+    document_type = models.CharField(
+        max_length=50,
+        default='supporting',
+        choices=[
+            ('road_scheme', 'Схема организации дорожного движения'),
+            ('approval', 'Согласование с другими службами'),
+            ('contract', 'Договор на выполнение работ'),
+            ('supporting', 'Сопроводительный документ'),
+            ('other', 'Другое')
+        ],
+        verbose_name='Тип документа'
+    )
     
-    
+    class Meta:
+        verbose_name = 'Документ заявки'
+        verbose_name_plural = 'Документы заявок'
+        ordering = ['-uploaded_at']
+        
+    def __str__(self):
+        return f'{self.title} ({self.closure})'
+
+
 class ClosureComment(models.Model):
     closure = models.ForeignKey(
         Closure,

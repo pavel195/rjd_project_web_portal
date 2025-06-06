@@ -11,6 +11,7 @@ import {
   CardContent,
   CardActionArea,
   CircularProgress,
+  Alert,
 } from '@mui/material';
 import { AuthContext } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -24,23 +25,31 @@ const Dashboard = () => {
     rejectedClosures: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // В реальном приложении здесь был бы запрос к API для получения статистики
-        // Имитация запроса для демонстрации
-        setTimeout(() => {
-          setStats({
-            totalCrossings: 45,
-            pendingClosures: 12,
-            approvedClosures: 8,
-            rejectedClosures: 3,
-          });
-          setLoading(false);
-        }, 1000);
+        setLoading(true);
+        // Получение количества переездов
+        const crossingsResponse = await api.get('/crossings/');
+        
+        // Получение заявок на закрытие с разными статусами
+        const pendingResponse = await api.get('/closures/?status=pending');
+        const approvedResponse = await api.get('/closures/?status=approved');
+        const rejectedResponse = await api.get('/closures/?status=rejected');
+        
+        setStats({
+          totalCrossings: crossingsResponse.data.length,
+          pendingClosures: pendingResponse.data.length,
+          approvedClosures: approvedResponse.data.length,
+          rejectedClosures: rejectedResponse.data.length,
+        });
+        
+        setLoading(false);
       } catch (error) {
         console.error('Ошибка при получении статистики:', error);
+        setError('Не удалось загрузить статистику. Пожалуйста, попробуйте позже.');
         setLoading(false);
       }
     };
@@ -81,6 +90,12 @@ const Dashboard = () => {
           Добро пожаловать, {user?.first_name} {user?.last_name}!
         </Typography>
       </Box>
+      
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
 
       <Grid container spacing={3} mb={4}>
         <Grid item xs={12} sm={6} md={3}>

@@ -85,6 +85,7 @@ const Closures = () => {
 
       const params = statusParam ? { status: statusParam } : {};
       const response = await api.get('/closures/', { params });
+      console.log('Получены данные о заявках:', response.data);
       setClosures(response.data);
       setLoading(false);
     } catch (error) {

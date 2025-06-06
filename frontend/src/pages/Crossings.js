@@ -18,6 +18,7 @@ import {
   DialogActions,
   TextField,
   Grid,
+  Alert,
 } from '@mui/material';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -28,45 +29,22 @@ const Crossings = () => {
   const [loading, setLoading] = useState(true);
   const [openMapDialog, setOpenMapDialog] = useState(false);
   const [selectedCrossing, setSelectedCrossing] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchCrossings();
   }, []);
 
   const fetchCrossings = async () => {
+    setLoading(true);
     try {
-      // В реальном приложении здесь был бы запрос к API
-      // api.get('/api/crossings/')
-      
-      // Имитация запроса для демонстрации
-      setTimeout(() => {
-        setCrossings([
-          {
-            id: 1,
-            name: 'Переезд №1 "Северный"',
-            latitude: 55.755819,
-            longitude: 37.617644,
-            description: 'Железнодорожный переезд на севере города',
-          },
-          {
-            id: 2,
-            name: 'Переезд №2 "Южный"',
-            latitude: 55.742933,
-            longitude: 37.615812,
-            description: 'Железнодорожный переезд на юге города',
-          },
-          {
-            id: 3,
-            name: 'Переезд №3 "Восточный"',
-            latitude: 55.751426,
-            longitude: 37.643658,
-            description: 'Железнодорожный переезд на востоке города',
-          },
-        ]);
-        setLoading(false);
-      }, 1000);
+      // Реальный запрос к API
+      const response = await api.get('/crossings/');
+      setCrossings(response.data);
+      setLoading(false);
     } catch (error) {
       console.error('Ошибка при получении списка переездов:', error);
+      setError('Не удалось загрузить данные о переездах. Пожалуйста, попробуйте позже.');
       setLoading(false);
     }
   };
@@ -98,6 +76,12 @@ const Crossings = () => {
           Список всех железнодорожных переездов в системе
         </Typography>
       </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
 
       <Paper elevation={3}>
         <TableContainer>

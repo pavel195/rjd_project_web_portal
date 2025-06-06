@@ -56,68 +56,11 @@ const ClosureDetail = () => {
 
   const fetchClosureDetails = async () => {
     try {
-      // В реальном приложении здесь был бы запрос к API
-      // const response = await api.get(`/api/closures/${id}/`);
-      // setClosure(response.data);
-      
-      // Имитация запроса для демонстрации
-      setTimeout(() => {
-        const mockClosure = {
-          id: parseInt(id),
-          railway_crossing: {
-            id: 1,
-            name: 'Переезд №1 "Северный"',
-            latitude: 55.755819,
-            longitude: 37.617644,
-            description: 'Железнодорожный переезд на севере города',
-          },
-          created_by: {
-            id: 1,
-            username: 'rzd_operator',
-            first_name: 'Иван',
-            last_name: 'Петров',
-            role: 'railway_operator',
-          },
-          start_date: '2025-03-15T08:00:00Z',
-          end_date: '2025-03-15T18:00:00Z',
-          reason: 'Плановый ремонт путей. Необходимо заменить рельсы и шпалы на участке длиной 200 метров.',
-          status: 'pending',
-          status_display: 'На согласовании',
-          created_at: '2025-03-01T10:00:00Z',
-          updated_at: '2025-03-02T15:30:00Z',
-          admin_approved: false,
-          gibdd_approved: false,
-          comments: [
-            {
-              id: 1,
-              user: {
-                id: 1,
-                username: 'rzd_operator',
-                first_name: 'Иван',
-                last_name: 'Петров',
-                role: 'railway_operator',
-              },
-              text: 'Заявка на плановый ремонт переезда.',
-              created_at: '2025-03-01T10:00:00Z',
-            },
-            {
-              id: 2,
-              user: {
-                id: 2,
-                username: 'admin_region',
-                first_name: 'Сергей',
-                last_name: 'Иванов',
-                role: 'administration',
-              },
-              text: 'Прошу уточнить объем работ и возможность организации временного объезда.',
-              created_at: '2025-03-02T12:30:00Z',
-            },
-          ],
-        };
-
-        setClosure(mockClosure);
-        setLoading(false);
-      }, 1000);
+      // Реальный запрос к API
+      const response = await api.get(`/closures/${id}/`);
+      console.log('Получены данные о заявке:', response.data);
+      setClosure(response.data);
+      setLoading(false);
     } catch (error) {
       console.error('Ошибка при получении данных заявки:', error);
       setError('Ошибка при загрузке данных заявки');
@@ -135,11 +78,10 @@ const ClosureDetail = () => {
 
   const sendForApproval = async () => {
     try {
-      // В реальном приложении здесь был бы запрос к API
-      // await api.post(`/api/closures/${id}/send_for_approval/`);
-      
-      // Имитация для демонстрации
-      setClosure({ ...closure, status: 'pending', status_display: 'На согласовании' });
+      // Реальный запрос к API
+      await api.post(`/closures/${id}/send_for_approval/`);
+      // Обновляем данные заявки
+      fetchClosureDetails();
       closeConfirmDialog();
     } catch (error) {
       console.error('Ошибка при отправке заявки на согласование:', error);
@@ -156,11 +98,10 @@ const ClosureDetail = () => {
 
   const approveAdministration = async () => {
     try {
-      // В реальном приложении здесь был бы запрос к API
-      // await api.post(`/api/closures/${id}/approve_administration/`);
-      
-      // Имитация для демонстрации
-      setClosure({ ...closure, admin_approved: true });
+      // Реальный запрос к API
+      await api.post(`/closures/${id}/approve_administration/`);
+      // Обновляем данные заявки
+      fetchClosureDetails();
       closeConfirmDialog();
     } catch (error) {
       console.error('Ошибка при согласовании заявки:', error);
@@ -177,19 +118,10 @@ const ClosureDetail = () => {
 
   const approveGibdd = async () => {
     try {
-      // В реальном приложении здесь был бы запрос к API
-      // await api.post(`/api/closures/${id}/approve_gibdd/`);
-      
-      // Имитация для демонстрации
-      const newClosure = { 
-        ...closure, 
-        gibdd_approved: true 
-      };
-      if (closure.admin_approved) {
-        newClosure.status = 'approved';
-        newClosure.status_display = 'Согласовано';
-      }
-      setClosure(newClosure);
+      // Реальный запрос к API
+      await api.post(`/closures/${id}/approve_gibdd/`);
+      // Обновляем данные заявки
+      fetchClosureDetails();
       closeConfirmDialog();
     } catch (error) {
       console.error('Ошибка при согласовании заявки:', error);
@@ -206,17 +138,10 @@ const ClosureDetail = () => {
 
   const rejectClosure = async () => {
     try {
-      // В реальном приложении здесь был бы запрос к API
-      // await api.post(`/api/closures/${id}/reject/`);
-      
-      // Имитация для демонстрации
-      setClosure({ 
-        ...closure, 
-        status: 'rejected', 
-        status_display: 'Отклонено',
-        admin_approved: false,
-        gibdd_approved: false
-      });
+      // Реальный запрос к API
+      await api.post(`/closures/${id}/reject/`);
+      // Обновляем данные заявки
+      fetchClosureDetails();
       closeConfirmDialog();
     } catch (error) {
       console.error('Ошибка при отклонении заявки:', error);
@@ -233,10 +158,8 @@ const ClosureDetail = () => {
 
   const deleteClosure = async () => {
     try {
-      // В реальном приложении здесь был бы запрос к API
-      // await api.delete(`/api/closures/${id}/`);
-      
-      // Имитация для демонстрации
+      // Реальный запрос к API
+      await api.delete(`/closures/${id}/`);
       closeConfirmDialog();
       navigate('/closures');
     } catch (error) {

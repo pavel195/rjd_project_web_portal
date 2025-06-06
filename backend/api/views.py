@@ -34,7 +34,14 @@ class ClosureViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        return Closure.objects.all()
+        queryset = Closure.objects.all()
+        
+        # Фильтрация по статусу, если указан в параметрах запроса
+        status_param = self.request.query_params.get('status', None)
+        if status_param:
+            queryset = queryset.filter(status=status_param)
+            
+        return queryset
     
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

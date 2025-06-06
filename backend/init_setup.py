@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 import django
+from datetime import datetime, timedelta
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings")
 django.setup()
@@ -8,7 +9,7 @@ django.setup()
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.management import call_command
-from railway_crossings.models import RailwayCrossing
+from railway_crossings.models import RailwayCrossing, Closure
 
 User = get_user_model()
 
@@ -141,6 +142,84 @@ def create_real_crossings():
         else:
             print(f"Переезд {crossing_data['name']} уже существует.")
 
+def create_test_closures():
+    """Создание тестовых заявок на закрытие переездов."""
+    # Получаем пользователя-оператора РЖД
+    operator = User.objects.filter(role=User.RAILWAY_OPERATOR).first()
+    if not operator:
+        print("Не найден пользователь с ролью оператора РЖД, заявки не созданы.")
+        return
+    
+    # Получаем несколько переездов
+    crossings = RailwayCrossing.objects.all()[:5]  # Берем первые 5 переездов
+    if not crossings:
+        print("Не найдены переезды, заявки не созданы.")
+        return
+    
+    # Текущая дата для генерации периодов закрытия
+    now = datetime.now()
+    
+    # Данные для заявок
+    closures_data = [
+        # Заявка на согласовании
+        {
+            'railway_crossing': crossings[0],
+            'created_by': operator,
+            'start_date': now + timedelta(days=30),
+            'end_date': now + timedelta(days=30, hours=10),
+            'reason': 'Плановый ремонт путей. Необходимо заменить рельсы и шпалы на участке длиной 200 метров.',
+            'status': Closure.PENDING,
+            'admin_approved': False,
+            'gibdd_approved': False
+        },
+        # Согласованная заявка
+        {
+            'railway_crossing': crossings[1],
+            'created_by': operator,
+            'start_date': now + timedelta(days=45),
+            'end_date': now + timedelta(days=45, hours=8),
+            'reason': 'Внеплановый ремонт светофорного оборудования. Требуется замена контроллера и проводки.',
+            'status': Closure.APPROVED,
+            'admin_approved': True,
+            'gibdd_approved': True
+        },
+        # Отклоненная заявка
+        {
+            'railway_crossing': crossings[2],
+            'created_by': operator,
+            'start_date': now + timedelta(days=15),
+            'end_date': now + timedelta(days=16),
+            'reason': 'Капитальный ремонт всего переезда. Полная замена покрытия и оборудования.',
+            'status': Closure.REJECTED,
+            'admin_approved': False,
+            'gibdd_approved': False
+        },
+        # Черновик заявки
+        {
+            'railway_crossing': crossings[3],
+            'created_by': operator,
+            'start_date': now + timedelta(days=60),
+            'end_date': now + timedelta(days=60, hours=6),
+            'reason': 'Техническое обслуживание автоматики и средств сигнализации.',
+            'status': Closure.DRAFT,
+            'admin_approved': False,
+            'gibdd_approved': False
+        }
+    ]
+    
+    # Создаем заявки
+    for closure_data in closures_data:
+        # Проверяем, есть ли уже такая заявка
+        if not Closure.objects.filter(
+            railway_crossing=closure_data['railway_crossing'],
+            start_date=closure_data['start_date'],
+            end_date=closure_data['end_date']
+        ).exists():
+            Closure.objects.create(**closure_data)
+            print(f"Заявка на закрытие переезда '{closure_data['railway_crossing'].name}' создана.")
+        else:
+            print(f"Заявка на закрытие переезда '{closure_data['railway_crossing'].name}' уже существует.")
+
 def run_migrations():
     """Выполнение миграций."""
     call_command('makemigrations')
@@ -155,6 +234,7 @@ def main():
     create_test_users()
     create_test_crossings()
     create_real_crossings()
+    create_test_closures()
     print("Инициализация проекта завершена.")
 
 if __name__ == "__main__":

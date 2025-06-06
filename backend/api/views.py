@@ -19,6 +19,9 @@ from .permissions import (
     IsAdministration,
     IsTrafficPolice
 )
+import logging
+
+logger = logging.getLogger('django.request')
 
 
 class RailwayCrossingViewSet(viewsets.ModelViewSet):
@@ -87,6 +90,13 @@ class ClosureViewSet(viewsets.ModelViewSet):
     def send_for_approval(self, request, pk=None):
         closure = self.get_object()
         if closure.status == Closure.DRAFT:
+            # Проверяем наличие документов
+            if not closure.documents.exists():
+                return Response(
+                    {'error': 'Для отправки заявки на согласование необходимо прикрепить хотя бы один документ'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
             closure.status = Closure.PENDING
             closure.save()
             return Response({'status': 'Отправлено на согласование'})
@@ -167,21 +177,31 @@ class ClosureDocumentViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         closure_id = self.kwargs.get('closure_id')
+        logger.info(f"Загрузка документа для заявки {closure_id} пользователем {self.request.user}")
+        
         closure = get_object_or_404(Closure, id=closure_id)
+        logger.info(f"Заявка найдена: {closure}, статус: {closure.status}")
         
         # Проверка, что пользователь имеет право добавлять документы
-        # Оператор РЖД может добавлять только для своих заявок в статусе черновика
+        # Оператор РЖД может добавлять документы к своим заявкам в статусе черновика или на согласовании
         if self.request.user.role == User.RAILWAY_OPERATOR:
-            if closure.created_by != self.request.user or closure.status != Closure.DRAFT:
+            if closure.created_by != self.request.user or (closure.status != Closure.DRAFT and closure.status != Closure.PENDING):
+                logger.warning(f"Отказано в доступе: пользователь {self.request.user} пытается добавить документ к заявке {closure_id}")
                 self.permission_denied(
                     self.request, 
                     message="У вас нет прав для добавления документов к этой заявке"
                 )
         
-        serializer.save(
-            uploaded_by=self.request.user,
-            closure=closure
-        )
+        try:
+            document = serializer.save(
+                uploaded_by=self.request.user,
+                closure=closure
+            )
+            logger.info(f"Документ успешно загружен: {document.title}, ID: {document.id}")
+            return document
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке документа: {str(e)}")
+            raise
     
     def get_permissions(self):
         if self.action in ['destroy']:

@@ -14,6 +14,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  ListItemIcon,
   Card,
   CardContent,
   Dialog,
@@ -29,6 +30,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   Send as SendIcon,
+  Description as DescriptionIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -421,6 +423,53 @@ const ClosureDetail = () => {
                 </Button>
               )}
             </Box>
+          </Paper>
+
+          {/* Секция с документами */}
+          <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              Документы
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+
+            {closure.documents && closure.documents.length > 0 ? (
+              <List>
+                {closure.documents.map((doc) => (
+                  <ListItem key={doc.id}>
+                    <ListItemIcon>
+                      <DescriptionIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={doc.title}
+                      secondary={
+                        <>
+                          {doc.document_type === 'road_scheme' && 'Схема организации дорожного движения'}
+                          {doc.document_type === 'approval' && 'Согласование с другими службами'}
+                          {doc.document_type === 'contract' && 'Договор на выполнение работ'}
+                          {doc.document_type === 'supporting' && 'Сопроводительный документ'}
+                          {doc.document_type === 'other' && 'Другое'}
+                          {` • Загружен: ${formatDate(doc.uploaded_at)}`}
+                        </>
+                      }
+                    />
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      component="a"
+                      href={doc.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Скачать
+                    </Button>
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="textSecondary">
+                Нет прикрепленных документов
+              </Typography>
+            )}
           </Paper>
 
           <Paper elevation={3} sx={{ p: 3 }}>

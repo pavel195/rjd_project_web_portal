@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Container,
@@ -21,7 +21,6 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemSecondary,
   IconButton,
 } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -65,16 +64,6 @@ const ClosureForm = () => {
     file: null
   });
 
-  useEffect(() => {
-    fetchCrossings();
-    if (isEditMode) {
-      fetchClosureDetails();
-      fetchDocuments();
-    } else {
-      setLoading(false);
-    }
-  }, [id]);
-
   const fetchCrossings = async () => {
     try {
       const response = await api.get('/crossings/');
@@ -88,10 +77,12 @@ const ClosureForm = () => {
     }
   };
 
-  const fetchClosureDetails = async () => {
+  const fetchClosureDetails = useCallback(async () => {
     try {
+      console.log("Запрашиваю детали заявки ID:", id);
       const response = await api.get(`/closures/${id}/`);
       const closure = response.data;
+      console.log("Получены данные заявки:", closure);
 
       setFormData({
         railway_crossing: closure.railway_crossing,
@@ -109,16 +100,29 @@ const ClosureForm = () => {
       });
       setLoading(false);
     }
-  };
+  }, [id, setFormData, setLoading, setAlert]);
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     try {
+      console.log("Запрашиваю документы для заявки ID:", id);
       const response = await api.get(`/closures/${id}/documents/`);
+      console.log("Получены документы:", response.data);
       setDocuments(response.data);
     } catch (error) {
       console.error('Ошибка при получении документов:', error);
     }
-  };
+  }, [id, setDocuments]);
+
+  useEffect(() => {
+    fetchCrossings();
+    if (isEditMode) {
+      console.log("Режим редактирования, ID заявки:", id);
+      fetchClosureDetails();
+      fetchDocuments();
+    } else {
+      setLoading(false);
+    }
+  }, [isEditMode, id, fetchClosureDetails, fetchDocuments]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -141,6 +145,15 @@ const ClosureForm = () => {
       newErrors.reason = 'Укажите причину закрытия';
     } else if (formData.reason.trim().length < 10) {
       newErrors.reason = 'Причина закрытия должна содержать не менее 10 символов';
+    }
+    
+    // Проверка наличия документов
+    if (action === 'submit' && documents.length === 0) {
+      setAlert({
+        type: 'error',
+        message: 'Необходимо прикрепить хотя бы один документ к заявке перед отправкой на согласование'
+      });
+      return false;
     }
     
     setErrors(newErrors);
@@ -193,22 +206,77 @@ const ClosureForm = () => {
         reason: formData.reason,
       };
 
+      console.log("Отправляю данные заявки:", dataToSend);
+      
       if (isEditMode) {
         response = await api.put(`/closures/${id}/`, dataToSend);
+        console.log("Заявка успешно обновлена:", response.data);
       } else {
         response = await api.post('/closures/', dataToSend);
+        console.log("Заявка успешно создана:", response.data);
+        
+        const newClosureId = response.data.id;
+        console.log("ID новой заявки:", newClosureId);
+        
+        // Сохраняем временные документы на сервер
+        if (documents.length > 0) {
+          console.log(`Обнаружено ${documents.length} документов для загрузки`);
+          
+          for (const doc of documents) {
+            if (doc.id.toString().startsWith('temp_')) {
+              console.log(`Загружаю временный документ: ${doc.title}`);
+              
+              const docFormData = new FormData();
+              docFormData.append('title', doc.title);
+              docFormData.append('document_type', doc.document_type);
+              docFormData.append('file', doc.file);
+              
+              try {
+                const docResponse = await api.post(`/closures/${newClosureId}/documents/`, docFormData, {
+                  headers: {
+                    'Content-Type': 'multipart/form-data'
+                  }
+                });
+                console.log("Документ успешно загружен:", docResponse.data);
+              } catch (docError) {
+                console.error(`Ошибка при загрузке документа ${doc.title}:`, docError);
+                // Продолжаем загрузку остальных документов
+              }
+            }
+          }
+        }
       }
 
+      // Добавляем цифровую подпись, если она предоставлена
       if (formData.digital_signature && response.data && response.data.id) {
         const closureId = isEditMode ? id : response.data.id;
-        await api.post(`/closures/${closureId}/sign_closure/`, {
-          digital_signature: formData.digital_signature
-        });
+        console.log(`Добавляю цифровую подпись к заявке ${closureId}`);
+        
+        try {
+          const signResponse = await api.post(`/closures/${closureId}/sign_closure/`, {
+            digital_signature: formData.digital_signature
+          });
+          console.log("Подпись успешно добавлена:", signResponse.data);
+        } catch (signError) {
+          console.error("Ошибка при добавлении подписи:", signError);
+        }
       }
 
+      // Отправляем на согласование, если это требуется
       if (action === 'submit' && response.data && response.data.id) {
         const closureId = isEditMode ? id : response.data.id;
-        await api.post(`/closures/${closureId}/send_for_approval/`);
+        console.log(`Отправляю заявку ${closureId} на согласование`);
+        
+        try {
+          const approvalResponse = await api.post(`/closures/${closureId}/send_for_approval/`);
+          console.log("Заявка отправлена на согласование:", approvalResponse.data);
+        } catch (approvalError) {
+          console.error("Ошибка при отправке на согласование:", approvalError);
+          setAlert({
+            type: 'warning',
+            message: 'Заявка сохранена, но возникла ошибка при отправке на согласование',
+          });
+        }
       }
 
       setSubmitting(false);
@@ -221,9 +289,19 @@ const ClosureForm = () => {
       
     } catch (error) {
       console.error('Ошибка при сохранении заявки:', error);
+      
+      let errorMessage = 'Не удалось сохранить заявку. Проверьте данные и попробуйте снова.';
+      if (error.response) {
+        console.error('Ответ сервера:', error.response.data);
+        errorMessage = `Ошибка сохранения: ${error.response.status} ${error.response.statusText}`;
+      } else if (error.request) {
+        console.error('Запрос не получил ответа');
+        errorMessage = 'Сервер не отвечает, проверьте подключение';
+      }
+      
       setAlert({
         type: 'error',
-        message: 'Не удалось сохранить заявку. Проверьте данные и попробуйте снова.',
+        message: errorMessage,
       });
       setSubmitting(false);
     }
@@ -296,6 +374,12 @@ const ClosureForm = () => {
     }
     
     setUploadingDoc(true);
+    console.log("Начинаю загрузку документа для заявки ID:", id || 'новая заявка');
+    console.log("Данные для загрузки:", {
+      title: uploadFormData.title,
+      document_type: uploadFormData.document_type,
+      fileName: uploadFormData.file?.name
+    });
     
     try {
       const formDataToSend = new FormData();
@@ -303,11 +387,31 @@ const ClosureForm = () => {
       formDataToSend.append('document_type', uploadFormData.document_type);
       formDataToSend.append('file', uploadFormData.file);
       
-      await api.post(`/closures/${id}/documents/`, formDataToSend, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      if (isEditMode && id) {
+        const response = await api.post(`/closures/${id}/documents/`, formDataToSend, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        
+        console.log("Документ успешно загружен:", response.data);
+        await fetchDocuments();
+      } else {
+        const tempDoc = {
+          id: `temp_${Date.now()}`,
+          title: uploadFormData.title,
+          document_type: uploadFormData.document_type,
+          file: uploadFormData.file,
+          file_url: URL.createObjectURL(uploadFormData.file),
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: {
+            first_name: user.first_name,
+            last_name: user.last_name
+          }
+        };
+        
+        setDocuments([...documents, tempDoc]);
+      }
       
       setUploadFormData({
         title: '',
@@ -315,17 +419,25 @@ const ClosureForm = () => {
         file: null
       });
       
-      fetchDocuments();
-      
       setAlert({
         type: 'success',
-        message: 'Документ успешно загружен',
+        message: 'Документ успешно добавлен',
       });
     } catch (error) {
       console.error('Ошибка при загрузке документа:', error);
+      
+      let errorMessage = 'Не удалось загрузить документ';
+      if (error.response) {
+        console.error('Ответ сервера:', error.response.data);
+        errorMessage = `Ошибка загрузки: ${error.response.status} ${error.response.statusText}`;
+      } else if (error.request) {
+        console.error('Запрос не получил ответа');
+        errorMessage = 'Сервер не отвечает, проверьте подключение';
+      }
+      
       setAlert({
         type: 'error',
-        message: 'Не удалось загрузить документ',
+        message: errorMessage,
       });
     } finally {
       setUploadingDoc(false);
@@ -336,9 +448,16 @@ const ClosureForm = () => {
     setDeletingDoc(docId);
     
     try {
-      await api.delete(`/closures/${id}/documents/${docId}/`);
-      
-      setDocuments(documents.filter(doc => doc.id !== docId));
+      if (isEditMode && id && !docId.toString().startsWith('temp_')) {
+        await api.delete(`/closures/${id}/documents/${docId}/`);
+        setDocuments(documents.filter(doc => doc.id !== docId));
+      } else {
+        setDocuments(documents.filter(doc => doc.id !== docId));
+        const docToDelete = documents.find(doc => doc.id === docId);
+        if (docToDelete && docToDelete.file_url.startsWith('blob:')) {
+          URL.revokeObjectURL(docToDelete.file_url);
+        }
+      }
       
       setAlert({
         type: 'success',
@@ -481,134 +600,144 @@ const ClosureForm = () => {
         </form>
       </Paper>
 
-      {isEditMode && (
-        <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Документы
-          </Typography>
-          
-          <Box component="form" onSubmit={handleUploadDocument} mb={3}>
-            <Grid container spacing={2} alignItems="flex-end">
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  name="title"
-                  label="Название документа"
-                  value={uploadFormData.title}
-                  onChange={handleUploadChange}
-                  error={!!uploadErrors.title}
-                  helperText={uploadErrors.title}
-                  disabled={uploadingDoc}
-                />
-              </Grid>
-              
-              <Grid item xs={12} sm={3}>
-                <TextField
-                  select
-                  fullWidth
-                  name="document_type"
-                  label="Тип документа"
-                  value={uploadFormData.document_type}
-                  onChange={handleUploadChange}
-                  disabled={uploadingDoc}
-                >
-                  {documentTypes.map((type) => (
-                    <MenuItem key={type.value} value={type.value}>
-                      {type.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              
-              <Grid item xs={12} sm={3}>
-                <Button
-                  component="label"
-                  variant="outlined"
-                  startIcon={<UploadFileIcon />}
-                  disabled={uploadingDoc}
-                  fullWidth
-                >
-                  Выбрать файл
-                  <input
-                    type="file"
-                    name="file"
-                    hidden
-                    onChange={handleUploadChange}
-                  />
-                </Button>
-                {uploadErrors.file && (
-                  <Typography color="error" variant="caption">
-                    {uploadErrors.file}
-                  </Typography>
-                )}
-                {uploadFormData.file && (
-                  <Typography variant="caption" noWrap>
-                    {uploadFormData.file.name}
-                  </Typography>
-                )}
-              </Grid>
-              
-              <Grid item xs={12} sm={2}>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={uploadingDoc}
-                  fullWidth
-                >
-                  {uploadingDoc ? <CircularProgress size={24} /> : 'Загрузить'}
-                </Button>
-              </Grid>
+      <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h5" gutterBottom>
+          Документы
+          {action !== 'save' && (
+            <Typography component="span" color="error" sx={{ ml: 1, fontSize: '0.8rem', fontWeight: 'normal' }}>
+              (обязательно)
+            </Typography>
+          )}
+        </Typography>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+          Прикрепите необходимые документы к заявке. При отправке на согласование необходимо прикрепить хотя бы один документ.
+        </Typography>
+        
+        <Box component="form" onSubmit={handleUploadDocument} mb={3}>
+          <Grid container spacing={2} alignItems="flex-end">
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                name="title"
+                label="Название документа"
+                value={uploadFormData.title}
+                onChange={handleUploadChange}
+                error={!!uploadErrors.title}
+                helperText={uploadErrors.title}
+                disabled={uploadingDoc}
+              />
             </Grid>
-          </Box>
-          
-          <Divider sx={{ my: 2 }} />
-          
-          <List>
-            {documents.length > 0 ? (
-              documents.map((doc) => (
-                <ListItem
-                  key={doc.id}
-                  secondaryAction={
-                    <IconButton
-                      edge="end"
-                      onClick={() => handleDeleteDocument(doc.id)}
-                      disabled={deletingDoc === doc.id}
-                    >
-                      {deletingDoc === doc.id ? (
-                        <CircularProgress size={24} />
-                      ) : (
-                        <DeleteIcon />
-                      )}
-                    </IconButton>
-                  }
-                >
-                  <ListItemIcon>
-                    <InsertDriveFileIcon />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={doc.title}
-                    secondary={`${documentTypes.find(t => t.value === doc.document_type)?.label || 'Документ'} • Загружен: ${new Date(doc.uploaded_at).toLocaleString('ru-RU')}`}
-                  />
-                  <Button
-                    href={doc.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    variant="text"
-                    size="small"
-                    sx={{ mr: 2 }}
+            
+            <Grid item xs={12} sm={3}>
+              <TextField
+                select
+                fullWidth
+                name="document_type"
+                label="Тип документа"
+                value={uploadFormData.document_type}
+                onChange={handleUploadChange}
+                disabled={uploadingDoc}
+              >
+                {documentTypes.map((type) => (
+                  <MenuItem key={type.value} value={type.value}>
+                    {type.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            
+            <Grid item xs={12} sm={3}>
+              <Button
+                component="label"
+                variant="outlined"
+                startIcon={<UploadFileIcon />}
+                disabled={uploadingDoc}
+                fullWidth
+              >
+                Выбрать файл
+                <input
+                  type="file"
+                  name="file"
+                  hidden
+                  onChange={handleUploadChange}
+                />
+              </Button>
+              {uploadErrors.file && (
+                <Typography color="error" variant="caption">
+                  {uploadErrors.file}
+                </Typography>
+              )}
+              {uploadFormData.file && (
+                <Typography variant="caption" noWrap>
+                  {uploadFormData.file.name}
+                </Typography>
+              )}
+            </Grid>
+            
+            <Grid item xs={12} sm={2}>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={uploadingDoc}
+                fullWidth
+              >
+                {uploadingDoc ? <CircularProgress size={24} /> : 'Загрузить'}
+              </Button>
+            </Grid>
+          </Grid>
+        </Box>
+        
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Внимание! Для отправки заявки на согласование необходимо прикрепить как минимум один документ.
+        </Alert>
+        
+        <Divider sx={{ my: 2 }} />
+        
+        <List>
+          {documents.length > 0 ? (
+            documents.map((doc) => (
+              <ListItem
+                key={doc.id}
+                secondaryAction={
+                  <IconButton
+                    edge="end"
+                    onClick={() => handleDeleteDocument(doc.id)}
+                    disabled={deletingDoc === doc.id}
                   >
-                    Скачать
-                  </Button>
-                </ListItem>
-              ))
-            ) : (
-              <ListItem>
-                <ListItemText primary="Нет загруженных документов" />
+                    {deletingDoc === doc.id ? (
+                      <CircularProgress size={24} />
+                    ) : (
+                      <DeleteIcon />
+                    )}
+                  </IconButton>
+                }
+              >
+                <ListItemIcon>
+                  <InsertDriveFileIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary={doc.title}
+                  secondary={`${documentTypes.find(t => t.value === doc.document_type)?.label || 'Документ'} • Загружен: ${new Date(doc.uploaded_at).toLocaleString('ru-RU')}`}
+                />
+                <Button
+                  href={doc.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="text"
+                  size="small"
+                  sx={{ mr: 2 }}
+                >
+                  Скачать
+                </Button>
               </ListItem>
-            )}
-          </List>
-        </Paper>
-      )}
+            ))
+          ) : (
+            <ListItem>
+              <ListItemText primary="Нет загруженных документов" />
+            </ListItem>
+          )}
+        </List>
+      </Paper>
 
       <Box display="flex" justifyContent="space-between">
         <Button
@@ -661,6 +790,35 @@ const ClosureForm = () => {
               ? 'Заявка будет отправлена на согласование в администрацию и ГИБДД. После отправки изменение данных будет невозможно.' 
               : 'Заявка будет сохранена как черновик. Вы сможете редактировать её позже и отправить на согласование.'}
           </DialogContentText>
+          
+          {documents.length > 0 && (
+            <Box mt={2}>
+              <Typography variant="subtitle2" gutterBottom>
+                Прикрепленные документы ({documents.length}):
+              </Typography>
+              <List dense>
+                {documents.slice(0, 3).map((doc) => (
+                  <ListItem key={doc.id}>
+                    <ListItemIcon>
+                      <InsertDriveFileIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={doc.title} 
+                      secondary={documentTypes.find(t => t.value === doc.document_type)?.label || 'Документ'} 
+                    />
+                  </ListItem>
+                ))}
+                {documents.length > 3 && (
+                  <ListItem>
+                    <ListItemText 
+                      secondary={`...и еще ${documents.length - 3} документ(ов)`} 
+                    />
+                  </ListItem>
+                )}
+              </List>
+            </Box>
+          )}
+          
           {formData.digital_signature && (
             <Alert severity="info" sx={{ mt: 2 }}>
               Заявка будет подписана вашей цифровой подписью.
@@ -671,7 +829,12 @@ const ClosureForm = () => {
           <Button onClick={() => setConfirmDialogOpen(false)} color="primary">
             Отмена
           </Button>
-          <Button onClick={handleConfirmAction} color="primary" variant="contained">
+          <Button 
+            onClick={handleConfirmAction} 
+            color="primary" 
+            variant="contained"
+            disabled={action === 'submit' && documents.length === 0}
+          >
             {action === 'submit' ? 'Отправить' : 'Сохранить'}
           </Button>
         </DialogActions>

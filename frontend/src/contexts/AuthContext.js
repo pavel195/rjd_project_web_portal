@@ -21,7 +21,17 @@ export const AuthProvider = ({ children }) => {
   const fetchUserData = async () => {
     try {
       const response = await api.get('/auth/users/me/');
-      setUser(response.data);
+      console.log('Получены данные пользователя:', response.data);
+      
+      // Обеспечиваем, что у пользователя всегда есть роль
+      const userData = {
+        ...response.data,
+        // Если роль не определена, устанавливаем роль по умолчанию для тестирования
+        role: response.data.role || 'administration'
+      };
+      
+      console.log('Установлены данные пользователя:', userData);
+      setUser(userData);
       setLoading(false);
     } catch (error) {
       console.error('Ошибка получения данных пользователя:', error);

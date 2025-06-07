@@ -26,6 +26,7 @@ import {
   Delete as DeleteIcon,
   CheckCircle as CheckIcon,
   Cancel as CancelIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -268,8 +269,9 @@ const Closures = () => {
                         to={`/closures/${closure.id}`}
                         size="small"
                         variant="outlined"
+                        startIcon={<VisibilityIcon />}
                       >
-                        Подробнее
+                        Просмотр
                       </Button>
                       
                       {canEdit(closure) && (

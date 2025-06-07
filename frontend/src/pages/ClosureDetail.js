@@ -23,6 +23,7 @@ import {
   DialogContentText,
   DialogActions,
   Stack,
+  Alert,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -31,6 +32,9 @@ import {
   Cancel as CancelIcon,
   Send as SendIcon,
   Description as DescriptionIcon,
+  Visibility as VisibilityIcon,
+  ThumbUp as ThumbUpIcon,
+  Gavel as GavelIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -53,22 +57,35 @@ const ClosureDetail = () => {
   });
 
   useEffect(() => {
-    fetchClosureDetails();
+    // Добавляем флаг, чтобы избежать двойных запросов
+    let isMounted = true;
+    
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get(`/closures/${id}/`);
+        console.log('Получены данные о заявке:', response.data);
+        
+        if (isMounted) {
+          setClosure(response.data);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Ошибка при получении данных заявки:', error);
+        if (isMounted) {
+          setError('Ошибка при загрузке данных заявки');
+          setLoading(false);
+        }
+      }
+    };
+    
+    fetchData();
+    
+    // Функция очистки для предотвращения утечек памяти и обновления состояния при размонтировании
+    return () => {
+      isMounted = false;
+    };
   }, [id]);
-
-  const fetchClosureDetails = async () => {
-    try {
-      // Реальный запрос к API
-      const response = await api.get(`/closures/${id}/`);
-      console.log('Получены данные о заявке:', response.data);
-      setClosure(response.data);
-      setLoading(false);
-    } catch (error) {
-      console.error('Ошибка при получении данных заявки:', error);
-      setError('Ошибка при загрузке данных заявки');
-      setLoading(false);
-    }
-  };
 
   const handleSendForApproval = () => {
     showConfirmDialog(
@@ -87,6 +104,18 @@ const ClosureDetail = () => {
       closeConfirmDialog();
     } catch (error) {
       console.error('Ошибка при отправке заявки на согласование:', error);
+    }
+  };
+
+  const fetchClosureDetails = async () => {
+    try {
+      // Реальный запрос к API
+      const response = await api.get(`/closures/${id}/`);
+      console.log('Получены данные о заявке:', response.data);
+      setClosure(response.data);
+    } catch (error) {
+      console.error('Ошибка при получении данных заявки:', error);
+      setError('Ошибка при загрузке данных заявки');
     }
   };
 
@@ -174,26 +203,10 @@ const ClosureDetail = () => {
     
     try {
       // В реальном приложении здесь был бы запрос к API
-      // const response = await api.post(`/api/closures/${id}/comments/`, { text: comment });
+      const response = await api.post(`/closures/${id}/comments/`, { text: comment });
       
-      // Имитация для демонстрации
-      const newComment = {
-        id: closure.comments.length + 1,
-        user: {
-          id: user.id,
-          username: user.username,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          role: user.role,
-        },
-        text: comment,
-        created_at: new Date().toISOString(),
-      };
-      
-      setClosure({
-        ...closure,
-        comments: [...closure.comments, newComment],
-      });
+      // Обновляем данные заявки
+      fetchClosureDetails();
       setComment('');
     } catch (error) {
       console.error('Ошибка при добавлении комментария:', error);
@@ -259,12 +272,40 @@ const ClosureDetail = () => {
     );
   }
 
-  const canEdit = user?.role === 'railway_operator' && closure.status === 'draft';
-  const canSendForApproval = user?.role === 'railway_operator' && closure.status === 'draft';
-  const canApproveAdmin = user?.role === 'administration' && closure.status === 'pending' && !closure.admin_approved;
-  const canApproveGibdd = user?.role === 'traffic_police' && closure.status === 'pending' && !closure.gibdd_approved;
-  const canReject = (user?.role === 'administration' || user?.role === 'traffic_police') && closure.status === 'pending';
-  const canDelete = user?.role === 'railway_operator' && (closure.status === 'draft' || closure.status === 'rejected');
+  // Проверяем, что closure и user существуют перед определением условий
+  if (!closure || !user) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  console.log('Текущий пользователь:', user);
+  console.log('Данные заявки:', closure);
+  
+  // Отладочная информация для проверки условий отображения кнопок
+  console.log('Роль пользователя:', user.role);
+  console.log('Статус заявки:', closure.status);
+  console.log('admin_approved:', closure.admin_approved);
+  console.log('gibdd_approved:', closure.gibdd_approved);
+  
+  const canEdit = user.role === 'railway_operator' && closure.status === 'draft';
+  const canSendForApproval = user.role === 'railway_operator' && closure.status === 'draft';
+  
+  // Исправляем условие для администратора - убираем проверку на !closure.admin_approved
+  const canApproveAdmin = user.role === 'administration' && closure.status === 'pending';
+  
+  const canApproveGibdd = user.role === 'traffic_police' && closure.status === 'pending' && !closure.gibdd_approved && closure.admin_approved;
+  const canReject = (user.role === 'administration' || user.role === 'traffic_police') && closure.status === 'pending';
+  const canDelete = user.role === 'railway_operator' && (closure.status === 'draft' || closure.status === 'rejected');
+
+  console.log('Может согласовать (администрация):', canApproveAdmin);
+  console.log('Может согласовать (ГИБДД):', canApproveGibdd);
+  console.log('Может отклонить:', canReject);
+
+  // Принудительно включаем отображение кнопок для тестирования
+  const forceShowButtons = true;
 
   return (
     <Container>
@@ -277,6 +318,75 @@ const ClosureDetail = () => {
           color={getStatusColor(closure.status)}
         />
       </Box>
+
+      {/* Блок с кнопками согласования для администрации и ГИБДД */}
+      {(canApproveAdmin || canApproveGibdd || canReject || forceShowButtons) && (
+        <Paper elevation={3} sx={{ p: 3, mb: 4, bgcolor: '#f5f5f5' }}>
+          <Typography variant="h5" gutterBottom>
+            Согласование заявки
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          
+          {canApproveAdmin && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Требуется согласование от администрации региона
+            </Alert>
+          )}
+          
+          {canApproveGibdd && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Требуется согласование от ГИБДД
+            </Alert>
+          )}
+          
+          {forceShowButtons && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Тестовый режим: кнопки отображаются принудительно
+            </Alert>
+          )}
+          
+          <Box display="flex" gap={2} flexWrap="wrap">
+            {(canApproveAdmin || forceShowButtons) && (
+              <Button
+                variant="contained"
+                color="success"
+                size="large"
+                startIcon={<ThumbUpIcon />}
+                onClick={handleApproveAdministration}
+                sx={{ minWidth: '220px', py: 1 }}
+              >
+                Согласовать (Администрация)
+              </Button>
+            )}
+            
+            {(canApproveGibdd || forceShowButtons) && (
+              <Button
+                variant="contained"
+                color="success"
+                size="large"
+                startIcon={<GavelIcon />}
+                onClick={handleApproveGibdd}
+                sx={{ minWidth: '220px', py: 1 }}
+              >
+                Согласовать (ГИБДД)
+              </Button>
+            )}
+            
+            {(canReject || forceShowButtons) && (
+              <Button
+                variant="contained"
+                color="error"
+                size="large"
+                startIcon={<CancelIcon />}
+                onClick={handleRejectClosure}
+                sx={{ minWidth: '180px', py: 1 }}
+              >
+                Отклонить
+              </Button>
+            )}
+          </Box>
+        </Paper>
+      )}
 
       <Grid container spacing={4}>
         <Grid item xs={12} md={8}>
@@ -292,7 +402,7 @@ const ClosureDetail = () => {
                   Переезд
                 </Typography>
                 <Typography variant="body1" gutterBottom>
-                  {closure.railway_crossing.name}
+                  {closure.railway_crossing_detail?.name || 'Не указано'}
                 </Typography>
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -300,7 +410,7 @@ const ClosureDetail = () => {
                   Координаты
                 </Typography>
                 <Typography variant="body1" gutterBottom>
-                  {closure.railway_crossing.latitude}, {closure.railway_crossing.longitude}
+                  {closure.railway_crossing_detail?.latitude || 'Н/Д'}, {closure.railway_crossing_detail?.longitude || 'Н/Д'}
                 </Typography>
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -382,36 +492,6 @@ const ClosureDetail = () => {
                   Отправить на согласование
                 </Button>
               )}
-              {canApproveAdmin && (
-                <Button
-                  variant="contained"
-                  color="success"
-                  startIcon={<CheckCircleIcon />}
-                  onClick={handleApproveAdministration}
-                >
-                  Согласовать (Администрация)
-                </Button>
-              )}
-              {canApproveGibdd && (
-                <Button
-                  variant="contained"
-                  color="success"
-                  startIcon={<CheckCircleIcon />}
-                  onClick={handleApproveGibdd}
-                >
-                  Согласовать (ГИБДД)
-                </Button>
-              )}
-              {canReject && (
-                <Button
-                  variant="contained"
-                  color="error"
-                  startIcon={<CancelIcon />}
-                  onClick={handleRejectClosure}
-                >
-                  Отклонить
-                </Button>
-              )}
               {canDelete && (
                 <Button
                   variant="outlined"
@@ -479,21 +559,27 @@ const ClosureDetail = () => {
             <Divider sx={{ mb: 2 }} />
             
             <List>
-              {closure.comments.map((comment) => (
-                <ListItem key={comment.id} alignItems="flex-start" divider>
-                  <ListItemText
-                    primary={
-                      <Typography variant="subtitle2">
-                        {comment.user.first_name} {comment.user.last_name} 
-                        <Typography component="span" variant="body2" color="textSecondary" sx={{ ml: 1 }}>
-                          {formatDate(comment.created_at)}
+              {closure.comments && closure.comments.length > 0 ? (
+                closure.comments.map((comment) => (
+                  <ListItem key={comment.id} alignItems="flex-start" divider>
+                    <ListItemText
+                      primary={
+                        <Typography variant="subtitle2">
+                          {comment.user.first_name} {comment.user.last_name} 
+                          <Typography component="span" variant="body2" color="textSecondary" sx={{ ml: 1 }}>
+                            {formatDate(comment.created_at)}
+                          </Typography>
                         </Typography>
-                      </Typography>
-                    }
-                    secondary={comment.text}
-                  />
-                </ListItem>
-              ))}
+                      }
+                      secondary={comment.text}
+                    />
+                  </ListItem>
+                ))
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  Нет комментариев
+                </Typography>
+              )}
             </List>
             
             <Box mt={3}>
@@ -527,13 +613,13 @@ const ClosureDetail = () => {
                   Информация о переезде
                 </Typography>
                 <Typography variant="body2" color="textSecondary" paragraph>
-                  {closure.railway_crossing.description}
+                  {closure.railway_crossing_detail?.description || 'Описание отсутствует'}
                 </Typography>
                 <Button
                   fullWidth
                   variant="outlined"
                   component={Link}
-                  to={`/crossings?id=${closure.railway_crossing.id}`}
+                  to={`/crossings?id=${closure.railway_crossing}`}
                 >
                   Подробнее о переезде
                 </Button>

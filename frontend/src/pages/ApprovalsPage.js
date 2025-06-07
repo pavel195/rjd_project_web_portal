@@ -260,7 +260,7 @@ const ApprovalsPage = () => {
                           Просмотр
                         </Button>
                         
-                        {isAdmin && !closure.admin_approved && (
+                        {isAdmin && !closure.admin_approved && closure.status === 'pending' && (
                           <>
                             <Button
                               variant="contained"
@@ -283,7 +283,7 @@ const ApprovalsPage = () => {
                           </>
                         )}
                         
-                        {isTrafficPolice && !closure.gibdd_approved && closure.admin_approved && (
+                        {isTrafficPolice && !closure.gibdd_approved && closure.admin_approved && closure.status === 'pending' && (
                           <>
                             <Button
                               variant="contained"
